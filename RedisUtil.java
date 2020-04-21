@@ -104,6 +104,38 @@ public class RedisUtil {
 	public Set<String> keys(String pattern) {
 		return redisTemplate.keys(pattern);
 	}
+	
+	/**
+	 * scan 实现
+	 * @param pattern   表达式
+     * @param consumer  对迭代到的key进行操作
+     */
+	public void scan(String pattern, Consumer<byte[]> consumer) {
+        this.redisTemplate.execute((RedisConnection connection) -> {
+            try (Cursor<byte[]> cursor = connection.scan(ScanOptions.scanOptions().count(Integer.MAX_VALUE).match(pattern).build())) {
+                cursor.forEachRemaining(consumer);
+                return null;
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    /**
+     * 获取符合条件的key
+     * @param pattern   表达式
+     * @return
+     */
+    public List<String> keysByScan(String pattern) {
+        List<String> keys = new ArrayList<>();
+        this.scan(pattern, item -> {
+            //符合条件的key
+            String key = new String(item, StandardCharsets.UTF_8);
+            keys.add(key);
+        });
+        return keys;
+    }
 
 	/**
 	 * 将当前数据库的 key 移动到给定的数据库 db 当中
@@ -289,6 +321,20 @@ public class RedisUtil {
 	public boolean setIfAbsent(String key, String value) {
 		return redisTemplate.opsForValue().setIfAbsent(key, value);
 	}
+	
+	/**
+     * 只有在 key 不存在时设置 key 的值和过期时间
+     *
+     * @param key
+     * @param value
+     * @param timeout 过期时间
+     * @param unit    时间单位, 天:TimeUnit.DAYS 小时:TimeUnit.HOURS 分钟:TimeUnit.MINUTES
+     *                秒:TimeUnit.SECONDS 毫秒:TimeUnit.MILLISECONDS
+     * @return 之前已经存在返回false, 不存在返回true
+     */
+    public Boolean setIfAbsentEx(String key, String value,long timeout, TimeUnit unit ) {
+        return redisTemplate.opsForValue().setIfAbsent(key, value, timeout, unit);
+    }
 
 	/**
 	 * 用 value 参数覆写给定 key 所储存的字符串值，从偏移量 offset 开始
